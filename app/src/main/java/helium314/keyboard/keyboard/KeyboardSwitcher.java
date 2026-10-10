@@ -36,6 +36,8 @@ import helium314.keyboard.event.Event;
 import helium314.keyboard.keyboard.clipboard.ClipboardHistoryView;
 import helium314.keyboard.keyboard.emoji.EmojiPalettesView;
 import helium314.keyboard.keyboard.internal.KeyboardState;
+import helium314.keyboard.keyboard.internal.LayoutDirective;
+import helium314.keyboard.keyboard.internal.ShiftMode;
 import helium314.keyboard.keyboard.internal.keyboard_parser.EmojiParserKt;
 import helium314.keyboard.latin.CapsMode;
 import helium314.keyboard.latin.utils.FloatingKeyboardUtils;
@@ -50,6 +52,7 @@ import helium314.keyboard.latin.settings.SettingsKt;
 import helium314.keyboard.latin.settings.SettingsValues;
 import helium314.keyboard.latin.suggestions.SuggestionStripView;
 import helium314.keyboard.latin.utils.CapsModeUtils;
+import helium314.keyboard.latin.utils.FloatingKeyboardUtils;
 import helium314.keyboard.latin.utils.FoldableUtils;
 import helium314.keyboard.latin.utils.KtxKt;
 import helium314.keyboard.latin.utils.LanguageOnSpacebarUtils;
@@ -820,7 +823,166 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         }
     }
 
-    public void setThemeNeedsReloadWithoutReload() {
-        mThemeNeedsReload = true;
+    // private SwitchActions implementation so e.g. setEmojiKeyboard can only be called via KeyboardState (avoid inconsistencies!)
+    private class SwitchActions implements KeyboardState.SwitchActions {
+        @Override
+        public void setAlphabetKeyboard(@NonNull ShiftMode shiftMode) {
+            if (DEBUG_ACTION) {
+                Log.d(TAG, "setAlphabetKeyboard");
+            }
+            setKeyboard(shiftMode.element, KeyboardSwitchState.OTHER);
+        }
+
+        @Override
+        public void setSymbolsKeyboard() {
+            if (DEBUG_ACTION) {
+                Log.d(TAG, "setSymbolsKeyboard");
+            }
+            setKeyboard(KeyboardElement.SYMBOLS, KeyboardSwitchState.OTHER);
+        }
+
+        @Override
+        public void setSymbolsShiftedKeyboard() {
+            if (DEBUG_ACTION) {
+                Log.d(TAG, "setSymbolsShiftedKeyboard");
+            }
+            setKeyboard(KeyboardElement.SYMBOLS_SHIFTED, KeyboardSwitchState.SYMBOLS_SHIFTED);
+        }
+
+        @Override
+        public void setEmojiKeyboard() {
+            if (DEBUG_ACTION) {
+                Log.d(TAG, "setEmojiKeyboard");
+            }
+            mMainKeyboardFrame.setVisibility(View.VISIBLE);
+            // The visibility of {@link #mKeyboardView} must be aligned with {@link #MainKeyboardFrame}.
+            // @see #getVisibleKeyboardView() and
+            // @see LatinIME#onComputeInset(android.inputmethodservice.InputMethodService.Insets)
+            mKeyboardView.setVisibility(View.GONE);
+            mSuggestionStripView.setVisibility(View.GONE);
+            mStripContainer.setVisibility(getSecondaryStripVisibility());
+            mClipboardStripScrollView.setVisibility(View.GONE);
+            mEmojiTabStripView.setVisibility(View.VISIBLE);
+            mClipboardHistoryView.setVisibility(View.GONE);
+            mEmojiPalettesView.startEmojiPalettes(mKeyboardView.getKeyVisualAttribute(),
+                mLatinIME.getCurrentInputEditorInfo(), mLatinIME.mKeyboardActionListener);
+            mEmojiPalettesView.setVisibility(View.VISIBLE);
+        }
+
+        @Override
+        public void setClipboardKeyboard() {
+            if (DEBUG_ACTION) {
+                Log.d(TAG, "setClipboardKeyboard");
+            }
+            mMainKeyboardFrame.setVisibility(View.VISIBLE);
+            // The visibility of {@link #mKeyboardView} must be aligned with {@link #MainKeyboardFrame}.
+            // @see #getVisibleKeyboardView() and
+            // @see LatinIME#onComputeInset(android.inputmethodservice.InputMethodService.Insets)
+            mKeyboardView.setVisibility(View.GONE);
+            mEmojiTabStripView.setVisibility(View.GONE);
+            mSuggestionStripView.setVisibility(View.GONE);
+            mStripContainer.setVisibility(getSecondaryStripVisibility());
+            mClipboardStripScrollView.post(() -> mClipboardStripScrollView.fullScroll(HorizontalScrollView.FOCUS_RIGHT));
+            mClipboardStripScrollView.setVisibility(View.VISIBLE);
+            mEmojiPalettesView.setVisibility(View.GONE);
+            mClipboardHistoryView.startClipboardHistory(mLatinIME.getClipboardHistoryManager(), mKeyboardView.getKeyVisualAttribute(),
+                mLatinIME.getCurrentInputEditorInfo(), mLatinIME.mKeyboardActionListener);
+            mClipboardHistoryView.setVisibility(View.VISIBLE);
+        }
+
+        @Override
+        public void setNumpadKeyboard() {
+            if (DEBUG_ACTION) {
+                Log.d(TAG, "setNumpadKeyboard");
+            }
+            setKeyboard(KeyboardElement.NUMPAD, KeyboardSwitchState.OTHER);
+        }
+
+        @Override
+        public void setDpadKeyboard() {
+            if (DEBUG_ACTION) {
+                Log.d(TAG, "setDpadKeyboard");
+            }
+            setKeyboard(KeyboardElement.DPAD, KeyboardSwitchState.OTHER);
+        }
+
+        @Override
+        public void startDoubleTapShiftKeyTimer() {
+            if (DEBUG_TIMER_ACTION) {
+                Log.d(TAG, "startDoubleTapShiftKeyTimer");
+            }
+            MainKeyboardView keyboardView = getMainKeyboardView();
+            if (keyboardView != null) {
+                keyboardView.startDoubleTapShiftKeyTimer();
+            }
+        }
+
+        @Override
+        public void cancelDoubleTapShiftKeyTimer() {
+            if (DEBUG_TIMER_ACTION) {
+                Log.d(TAG, "cancelDoubleTapShiftKeyTimer");
+            }
+            MainKeyboardView keyboardView = getMainKeyboardView();
+            if (keyboardView != null) {
+                keyboardView.cancelDoubleTapShiftKeyTimer();
+            }
+        }
+
+        @Override
+        public void setOneHandedModeEnabled(boolean enabled) {
+            KeyboardSwitcher.this.setOneHandedModeEnabled(enabled, false);
+        }
+
+        @Override
+        public void switchOneHandedMode() {
+            mKeyboardViewWrapper.switchOneHandedModeSide();
+            Settings.getInstance().writeOneHandedModeGravity(mKeyboardViewWrapper.getOneHandedGravity());
+        }
+
+        @Override
+        public void setFloatingKeyboardEnabled(boolean enabled) {
+            if (enabled != Settings.getValues().mIsFloatingKeyboard)
+                // mIsFloatingKeyboard is always disabled when device is locked, and we shouldn't mess up the setting
+                SettingsKt.setFloatingKeyboardEnabled(mThemeContext, enabled);
+            if (enabled) FloatingKeyboardUtils.setFloating(mCurrentInputView);
+            else FloatingKeyboardUtils.disableFloating(mCurrentInputView);
+            setBackgroundGatheringIndicatorPosition();
+        }
+
+        @Override
+        public boolean popDoubleTapShiftKeyTimer() {
+            if (DEBUG_TIMER_ACTION) {
+                Log.d(TAG, "isInDoubleTapShiftKeyTimeout");
+            }
+            MainKeyboardView keyboardView = getMainKeyboardView();
+            return keyboardView != null && keyboardView.popDoubleTapShiftKeyTimer();
+        }
+
+        // not a SwitchAction, but should only be called from a SwitchAction to avoid inconsistent state / actual layout
+        private void setKeyboard(KeyboardElement keyboardElement, @NonNull KeyboardSwitchState toggleState) {
+            // with a hardware keyboard we might get here without ever calling onCreateInputView, so don't crash
+            if (mKeyboardView == null) return;
+
+            // Make {@link MainKeyboardView} visible and hide {@link EmojiPalettesView}.
+            SettingsValues currentSettingsValues = Settings.getValues();
+            setMainKeyboardFrame(currentSettingsValues, toggleState);
+            // TODO: pass this object to setKeyboard instead of getting the current values.
+            MainKeyboardView keyboardView = mKeyboardView;
+            Keyboard oldKeyboard = keyboardView.getKeyboard();
+            Keyboard newKeyboard = mKeyboardLayoutSet.getKeyboard(keyboardElement);
+            keyboardView.setKeyboard(newKeyboard);
+            mCurrentInputView.setKeyboardTopPadding(newKeyboard.mTopPadding);
+            keyboardView.setKeyPreviewPopupEnabled(currentSettingsValues.mKeyPreviewPopupOn);
+            keyboardView.updateShortcutKey(mRichImm.isShortcutImeReady());
+            boolean subtypeChanged = (oldKeyboard == null) || !newKeyboard.mId.getSubtype().equals(oldKeyboard.mId.getSubtype());
+            int languageOnSpacebarFormatType = LanguageOnSpacebarUtils.getLanguageOnSpacebarFormatType(newKeyboard.mId.getSubtype());
+            boolean hasMultipleEnabledIMEsOrSubtypes = mRichImm.hasMultipleEnabledIMEsOrSubtypes(true);
+            keyboardView.startDisplayLanguageOnSpacebar(subtypeChanged, languageOnSpacebarFormatType, hasMultipleEnabledIMEsOrSubtypes);
+
+            if (currentSettingsValues.needsToLookupSuggestions()
+                && (currentSettingsValues.mInlineEmojiSearch || currentSettingsValues.mSuggestEmojis)) {
+                EmojiParserKt.loadEmojiDefaultVersionsAndPopupSpecs(mThemeContext);
+            }
+        }
     }
 }

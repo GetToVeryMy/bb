@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
+import android.util.TypedValue
 import android.view.Gravity
 import helium314.keyboard.keyboard.KeyboardActionListener
 import helium314.keyboard.keyboard.KeyboardTheme
@@ -20,6 +21,9 @@ import helium314.keyboard.latin.utils.defaultToolbarPref
 object Defaults {
     fun initDynamicDefaults(context: Context) {
         PREF_GESTURE_DYNAMIC_PREVIEW_FOLLOW_SYSTEM = getTransitionAnimationScale(context) != 0.0f
+        val dm = context.resources.displayMetrics
+        val px600 = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 600f, dm)
+        PREF_POPUP_ON = dm.widthPixels >= px600 || dm.heightPixels >= px600
     }
 
     // must correspond to a file name
@@ -32,6 +36,7 @@ object Defaults {
         LayoutType.NUMBER_ROW -> "number_row"
         LayoutType.NUMPAD -> "numpad"
         LayoutType.NUMPAD_LANDSCAPE -> "numpad_landscape"
+        LayoutType.DPAD -> "dpad"
         LayoutType.PHONE -> "phone"
         LayoutType.PHONE_SYMBOLS -> "phone_symbols"
         LayoutType.EMOJI_BOTTOM -> "emoji_bottom_row"
@@ -39,24 +44,25 @@ object Defaults {
     }
 
     private const val DEFAULT_SIZE_SCALE = 1.0f // 100%
-    const val PREF_THEME_STYLE = KeyboardTheme.STYLE_ROUNDED
+    const val PREF_THEME_STYLE = KeyboardTheme.STYLE_MATERIAL
     fun PREF_ICON_STYLE(prefs: SharedPreferences) = prefs.getString(Settings.PREF_THEME_STYLE, PREF_THEME_STYLE)!!
-    const val PREF_THEME_COLORS = KeyboardTheme.THEME_DYNAMIC
-    const val PREF_THEME_COLORS_NIGHT = KeyboardTheme.THEME_DYNAMIC
-    const val PREF_THEME_KEY_BORDERS = true
+    const val PREF_ACCENT_SHIFTED_ICON = false
+    const val PREF_THEME_COLORS = KeyboardTheme.THEME_LIGHT
+    const val PREF_THEME_COLORS_NIGHT = KeyboardTheme.THEME_DARK
+    const val PREF_THEME_KEY_BORDERS = false
     @JvmField
     val PREF_THEME_DAY_NIGHT = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
     const val PREF_CUSTOM_ICON_NAMES = ""
     const val PREF_TOOLBAR_CUSTOM_KEY_CODES = ""
     const val PREF_AUTO_CAP = true
-    const val PREF_VIBRATE_ON = true
+    const val PREF_VIBRATE_ON = false
     const val PREF_VIBRATE_IN_DND_MODE = false
     const val PREF_SOUND_ON = false
     const val PREF_SUGGEST_EMOJIS = true
     const val PREF_INLINE_EMOJI_SEARCH = true
     const val PREF_SHOW_EMOJI_DESCRIPTIONS = true
     @JvmField
-    var PREF_POPUP_ON = false
+    var PREF_POPUP_ON = true
     const val PREF_AUTO_CORRECTION = true
     const val PREF_MORE_AUTO_CORRECTION = false
     const val PREF_AUTO_CORRECT_CONFIDENCE = 0.24f
@@ -72,7 +78,8 @@ object Defaults {
     const val PREF_BLOCK_POTENTIALLY_OFFENSIVE = true
     const val PREF_SHOW_LANGUAGE_SWITCH_KEY = false
     const val PREF_LANGUAGE_SWITCH_KEY = "internal"
-    const val PREF_SHOW_EMOJI_KEY = true
+    const val PREF_SHOW_EMOJI_KEY = false
+    const val PREF_SHOW_DPAD_KEY = true
     const val PREF_VARIABLE_TOOLBAR_DIRECTION = true
     const val PREF_ADDITIONAL_SUBTYPES = "de${Separators.SET}${ExtraValue.KEYBOARD_LAYOUT_SET}=MAIN:qwerty${Separators.SETS}" +
             "fr${Separators.SET}${ExtraValue.KEYBOARD_LAYOUT_SET}=MAIN:qwertz${Separators.SETS}" +
@@ -115,9 +122,16 @@ object Defaults {
     const val PREF_KEYPRESS_SOUND_VOLUME = -0.01f
     const val PREF_KEY_LONGPRESS_TIMEOUT = 300
     const val PREF_ENABLE_EMOJI_ALT_PHYSICAL_KEY = true
+    // supporting hardware keyboard still has a bunch of issues
+    // crash https://github.com/HeliBorg/HeliBoard/issues/2047 (possibly fixed with b7cb95fc9da213c99d82e8833fb5f950f39d232e)
+    // different crash https://github.com/HeliBorg/HeliBoard/issues/2001
+    //  LatinIME.isInputViewShown() returns true when there is no input view, thus crashing in onUpdateSelection
+    // physical layout ignored https://github.com/HeliBorg/HeliBoard/issues/1957, https://github.com/HeliBorg/HeliBoard/issues/1949
+    // physical layout ignored for uppercase letters only (?) https://github.com/HeliBorg/HeliBoard/issues/2030
+    const val PREF_ENABLE_HARDWARE_KEYBOARD = false
     const val PREF_GESTURE_PREVIEW_TRAIL = true
-    const val PREF_GESTURE_FLOATING_PREVIEW_TEXT = false
-    const val PREF_GESTURE_FLOATING_PREVIEW_DYNAMIC = false
+    const val PREF_GESTURE_FLOATING_PREVIEW_TEXT = true
+    const val PREF_GESTURE_FLOATING_PREVIEW_DYNAMIC = true
     @JvmField
     var PREF_GESTURE_DYNAMIC_PREVIEW_FOLLOW_SYSTEM = true
     const val PREF_GESTURE_SPACE_AWARE = false
@@ -147,7 +161,7 @@ object Defaults {
     const val PREF_TOUCHPAD_SENSITIVITY = 50
     const val PREF_TOUCHPAD_EDGE_SCROLL = true
     const val PREF_ENABLE_CLIPBOARD_HISTORY = true
-    const val PREF_CLIPBOARD_HISTORY_RETENTION_TIME = 120 // minutes
+    const val PREF_CLIPBOARD_HISTORY_RETENTION_TIME = 10 // minutes
     const val PREF_CLIPBOARD_HISTORY_PINNED_FIRST = true
     const val PREF_CLIPBOARD_USE_FILES = true
     const val PREF_CLIPBOARD_FILES_SIZE_LIMIT = 20 // megabytes
@@ -174,7 +188,7 @@ object Defaults {
     const val PREF_REMOVE_REDUNDANT_POPUPS = false
     const val PREF_SPACE_BAR_TEXT = ""
     const val PREF_TIMESTAMP_FORMAT = "yyyy-MM-dd HH:mm:ss"
-    const val PREF_EMOJI_RECENT_KEYS = ""
+    const val PREF_RECENT_EMOJIS = ""
     const val PREF_LAST_SHOWN_EMOJI_CATEGORY_PAGE_ID = 0
     const val PREF_SHOW_DEBUG_SETTINGS = false
     val PREF_DEBUG_MODE = BuildConfig.DEBUG
